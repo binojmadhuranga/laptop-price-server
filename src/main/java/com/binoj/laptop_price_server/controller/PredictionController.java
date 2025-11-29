@@ -2,6 +2,7 @@ package com.binoj.laptop_price_server.controller;
 
 import com.binoj.laptop_price_server.dto.PredictionRequestDto;
 import com.binoj.laptop_price_server.dto.PredictionResponseDto;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
@@ -9,11 +10,10 @@ import org.springframework.web.client.RestTemplate;
 @RestController
 @RequestMapping("/api")
 @CrossOrigin("*")
+@RequiredArgsConstructor
 public class PredictionController {
 
-    @Autowired
-    private RestTemplate restTemplate;
-
+    private final RestTemplate restTemplate;
     private final String FLASK_URL = "http://localhost:5001/predict";
 
     @PostMapping("/predict")
