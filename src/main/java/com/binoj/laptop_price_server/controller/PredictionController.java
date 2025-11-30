@@ -3,7 +3,6 @@ package com.binoj.laptop_price_server.controller;
 import com.binoj.laptop_price_server.dto.PredictionRequestDto;
 import com.binoj.laptop_price_server.dto.PredictionResponseDto;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
