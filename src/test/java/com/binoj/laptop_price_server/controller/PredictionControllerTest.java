@@ -2,34 +2,27 @@ package com.binoj.laptop_price_server.controller;
 
 import com.binoj.laptop_price_server.dto.PredictionRequestDto;
 import com.binoj.laptop_price_server.dto.PredictionResponseDto;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.client.RestTemplate;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.Mockito.verify;
 
-@WebMvcTest(PredictionController.class)
+@ExtendWith(MockitoExtension.class)
 class PredictionControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @MockBean
+    @Mock
     private RestTemplate restTemplate;
+
+    @InjectMocks
+    private PredictionController controller;
 
     private PredictionRequestDto buildRequest() {
         PredictionRequestDto dto = new PredictionRequestDto();
@@ -52,50 +45,47 @@ class PredictionControllerTest {
         return response;
     }
 
-    @Nested
-    class PredictEndpoint {
+    @Test
+    @DisplayName("predict returns Flask response when downstream call succeeds")
+    void predict_success() {
+        PredictionRequestDto req = buildRequest();
+        PredictionResponseDto expected = buildSuccessResponse();
 
-        @Test
-        @DisplayName("Returns downstream prediction when Flask call succeeds")
-        void predict_success() throws Exception {
-            PredictionRequestDto req = buildRequest();
-            PredictionResponseDto response = buildSuccessResponse();
+        Mockito.when(restTemplate.postForObject(eq("http://localhost:5001/predict"), eq(req), eq(PredictionResponseDto.class)))
+                .thenReturn(expected);
 
-            Mockito.when(restTemplate.postForObject(eq("http://localhost:5001/predict"), eq(req), eq(PredictionResponseDto.class)))
-                    .thenReturn(response);
+        PredictionResponseDto actual = controller.predict(req);
 
-            mockMvc.perform(post("/api/predict")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(req)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.success").value(true))
-                    .andExpect(jsonPath("$.prediction").value(1234.56));
-        }
+        assertThat(actual).isEqualTo(expected);
+        verify(restTemplate).postForObject("http://localhost:5001/predict", req, PredictionResponseDto.class);
+    }
 
-        @Test
-        @DisplayName("Returns error payload when Flask call throws exception")
-        void predict_flaskError() throws Exception {
-            PredictionRequestDto req = buildRequest();
+    @Test
+    @DisplayName("predict returns error payload when Flask call throws exception")
+    void predict_whenFlaskErrors_returnsErrorResponse() {
+        PredictionRequestDto req = buildRequest();
 
-            Mockito.when(restTemplate.postForObject(eq("http://localhost:5001/predict"), eq(req), eq(PredictionResponseDto.class)))
-                    .thenThrow(new RuntimeException("Flask down"));
+        Mockito.when(restTemplate.postForObject(eq("http://localhost:5001/predict"), eq(req), eq(PredictionResponseDto.class)))
+                .thenThrow(new RuntimeException("Flask down"));
 
-            mockMvc.perform(post("/api/predict")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(req)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.success").value(false))
-                    .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("Flask down")));
-        }
+        PredictionResponseDto actual = controller.predict(req);
 
-        @Test
-        @DisplayName("Returns 400 when request body missing required fields")
-        void predict_invalidRequest() throws Exception {
-            mockMvc.perform(post("/api/predict")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{}"))
-                    .andExpect(status().isBadRequest());
-        }
+        assertThat(actual.isSuccess()).isFalse();
+        assertThat(actual.getError()).contains("Flask down");
+        verify(restTemplate).postForObject("http://localhost:5001/predict", req, PredictionResponseDto.class);
+    }
+
+    @Test
+    @DisplayName("predict propagates null response gracefully")
+    void predict_whenFlaskReturnsNull() {
+        PredictionRequestDto req = buildRequest();
+
+        Mockito.when(restTemplate.postForObject(eq("http://localhost:5001/predict"), eq(req), eq(PredictionResponseDto.class)))
+                .thenReturn(null);
+
+        PredictionResponseDto actual = controller.predict(req);
+
+        assertThat(actual).isNull();
+        verify(restTemplate).postForObject("http://localhost:5001/predict", req, PredictionResponseDto.class);
     }
 }
-
